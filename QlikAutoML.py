@@ -9,8 +9,13 @@ from sklearn.linear_model import LogisticRegression
 import requests
 import xgboost as xgb
 from sklearn.metrics import mean_squared_error 
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify # type: ignore
 import requests
+from sklearn import tree
+from sklearn.ensemble import RandomForestClassifier
+from sklearn import svm
+from sklearn.impute import SimpleImputer
+from sklearn.pipeline import make_pipeline
 
 app = Flask(__name__)
 
@@ -74,17 +79,11 @@ clf_Y_Pred = clf.predict(X_test)
 dev.append(clf.score(X_test, Y_test))
 data.append(clf_Y_Pred)
 
-#----------------------LogisticRegression---------------------------
 
-clf1 = LogisticRegression(random_state=0)
-clf1.fit(X_train, Y_train)
-yx_pred = clf1.predict(X_test)
-dev.append(clf1.score(X_test, Y_test))
-data.append(yx_pred)
 
 #----------------------ScoreDisplay--------------------------------
 
-print("this is data shape: " + str(len(data[3])))
+#print("this is data shape: " + str(len(data[3])))
 
 #----------------------MaxPerformanceIndex-------------------------
 
@@ -172,8 +171,161 @@ print("predictions are printed here" + str(test['TSAprediction']))
 df.to_csv('C:\\Users\\YutishthaTanwar\\Downloads\\InsuranceML_predictions.csv', index=False)
 
 print("successfully added")
-#plt.plot(df['prediction_x'],test['TSAprediction'])'''
 
+#----------------------Classification-------------------------
+dev1 =[]
+data1=[]
+categorical_cols1 = ['Amount','Policy Type']
+
+# Drop the target variable 'Production Cost' from the encoded DataFrame to get features (X)
+# Perform one-hot encoding
+encoded_X1 = pd.get_dummies(df, columns=categorical_cols1)
+
+X_cat = encoded_X1.drop(columns=['Claimed'])
+
+# Assign the target variable 'Production Cost' to y
+y_cat = df['Claimed']
+
+#standard scaling 
+scaler1 = StandardScaler() 
+X_cat = scaler1.fit_transform(X_cat) 
+
+# Splitting dataset into train and test set 
+X_train_cat, X_test_cat, Y_train_cat, Y_test_cat = train_test_split( X_cat, y_cat, test_size=0.3, random_state=0)
+
+# Initialize SimpleImputer
+imputer = SimpleImputer(strategy='mean')
+
+# Fit the imputer on the training data and transform both training and testing data
+X_train_cat_imputed = imputer.fit_transform(X_train_cat)
+X_test_cat_imputed = imputer.transform(X_test_cat)
+#----------------------LogisticRegression---------------------------
+
+clf11 = LogisticRegression(random_state=0)
+clf11.fit(X_train_cat_imputed, Y_train_cat)
+yx_pred1 = clf11.predict(X_test_cat_imputed)
+dev1.append(clf11.score(X_test_cat_imputed, Y_test_cat))
+data1.append(yx_pred1)
+
+#----------------------DecisionTree---------------------------
+
+clf1 = tree.DecisionTreeClassifier()
+clf1 = clf1.fit(X_train_cat_imputed, Y_train_cat)
+yx_pred11 = clf1.predict(X_test_cat_imputed)
+dev1.append(clf1.score(X_test_cat_imputed, Y_test_cat))
+data1.append(yx_pred11)
+
+#----------------------RandomForest---------------------------
+
+clf = RandomForestClassifier(max_depth=2, random_state=0)
+clf.fit(X_train_cat_imputed, Y_train_cat)
+yxx_pred = clf.predict(X_test_cat_imputed)
+dev1.append(clf.score(X_test_cat_imputed, Y_test_cat))
+data1.append(yxx_pred)
+
+#----------------------SVM------------------------------------
+# Define the pipeline with an imputer and SVC
+pipeline = make_pipeline(
+    SimpleImputer(strategy='mean'),  # Impute missing values with the mean
+    StandardScaler(),  # Standardize features by removing the mean and scaling to unit variance
+    svm.SVC()  # Support Vector Classifier
+)
+
+# Fit the pipeline on the data
+pipeline.fit(X_train_cat_imputed, Y_train_cat)
+
+yxxx_pred = pipeline.predict(X_test_cat_imputed)
+dev1.append(pipeline.score(X_test_cat_imputed, Y_test_cat))
+data1.append(yxxx_pred)
+
+#----------------------MaxPerformanceIndex-------------------------
+
+ind1 = 0    #ind variable to store the index of maximum value in the list
+max_element1 = dev1[0]
+ 
+for i in range (1,len(dev1)): #iterate over array
+  if dev1[i] > max_element1: #to check max value
+    max_element1 = dev1[i]
+    ind1 = i
+
+#----------------------StoringPredictions-------------------------
+
+# Create a new DataFrame to store predictions
+#predictions_df1 = pd.DataFrame({'claimprediction': data1[ind1]}, index=df.index[X_test_cat_imputed])
+#predictions_df1 = pd.DataFrame({'claimprediction': data1[ind1]}, index=range(len(X_test_cat_imputed)))
+#predictions_df1 = pd.DataFrame({'claimprediction': data1[ind1]}, index=df.index)
+# Concatenate predictions_df with the original DataFrame df
+selected_predictions = data1[ind1]
+
+
+
+
+# Check the length of predictions and the index of the original DataFrame
+print("Length of predictions:", len(selected_predictions))
+print("Length of DataFrame index:", len(df.index))
+
+
+#----------------------StoringPredictions-------------------------
+
+# Create a new DataFrame to store predictions
+#predictions_df1 = pd.DataFrame({'claimprediction': selected_predictions}, index=df.index)
+#predictions_df1 = pd.DataFrame({'claimprediction': selected_predictions}, index=df.index)
+# Create a new DataFrame with predictions aligned with DataFrame index
+predictions_df1 = pd.DataFrame({'claimprediction': selected_predictions}, index=df.index[:len(selected_predictions)])
+
+# Check the length of the predictions DataFrame
+print("Length of predictions DataFrame:", len(predictions_df1))
+df_with_predictions1 = pd.concat([df, predictions_df1], axis=1)
+df_with_predictions1.to_csv('C:\\Users\\YutishthaTanwar\\Downloads\\InsuranceML_predictions.csv', index=False)
+
+print("successfully added")
+
+
+
+
+
+'''
+import csv
+import psycopg2
+
+# Establish connection to PostgreSQL
+conn = psycopg2.connect(
+    dbname="your_database",
+    user="your_username",
+    password="your_password",
+    host="localhost",
+    port="5432"
+)
+
+# Open CSV file
+with open('your_csv_file.csv', 'r') as csv_file:
+    csv_reader = csv.reader(csv_file)
+    next(csv_reader)  # Skip header row if exists
+
+    # Create a cursor object
+    cursor = conn.cursor()
+
+    # Iterate over each row in the CSV file
+    for row in csv_reader:
+        # Define the SQL statement to insert data into your table
+        insert_query = """
+        INSERT INTO your_table_name (column1, column2, column3, ...) 
+        VALUES (%s, %s, %s, ...);
+        """
+
+        # Execute the SQL statement with the current row's values
+        cursor.execute(insert_query, row)
+
+# Commit the transaction
+conn.commit()
+
+# Close the cursor and connection
+cursor.close()
+conn.close()
+
+print("CSV data has been successfully inserted into PostgreSQL.")
+
+#plt.plot(df['prediction_x'],test['TSAprediction'])
 #----------------------SendingDataToQLik--------------------------
 
 @app.route('/receive_csv', methods=['POST'])
@@ -189,9 +341,12 @@ def receive_csv():
             return jsonify({'error': 'Failed to send CSV file to Qlik Sense'})
 
 if __name__ == '__main__':
-    app.run(debug=True)
-    
-'''
+    app.run(port = 5000, debug=True)
+    ngrok http 5000
+
+
+
+
 # Convert the DataFrame to JSON format
 data_to_send = df.to_json(orient='records')
 
